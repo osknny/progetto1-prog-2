@@ -1,0 +1,106 @@
+#include <stdio.h>
+#include <ctype.h>
+
+/* Prototipo necessario */
+int stoib(char *s, unsigned short b, int *r);
+
+static int fail(void) {
+    printf("TEST FAILED\n");
+    return 0;
+}
+
+static int check_valid(char *s, unsigned short b, int exp_ret, int exp_r) {
+    int r = 123456789; /* sentinel */
+    int ret = stoib(s, b, &r);
+    if (ret != exp_ret) return 0;
+    if (exp_ret != 0 && r != exp_r) return 0;
+    return 1;
+}
+
+static int check_invalid_s_null(unsigned short b) {
+    int r = 0;
+    return stoib(NULL, b, &r) == 0;
+}
+
+static int check_invalid_r_null(char *s, unsigned short b) {
+    return stoib(s, b, NULL) == 0;
+}
+
+int main(void) {
+    /* 1) Spazi + segno + cifre + stop su minuscole (minuscole NON valide) */
+    if (!check_valid("   -1Axyz", 16, 6, -26)) return fail();
+
+    /* 2) Stop al primo char non cifra in base: base2 non accetta '2' */
+    if (!check_valid("+10102", 2, 5, 10)) return fail();
+
+    /* 3) Base 36: 'Z' vale 35 */
+    if (!check_valid("Z", 36, 1, 35)) return fail();
+
+    /* 4) Stop su spazio interno */
+    if (!check_valid("12 34", 10, 2, 12)) return fail();
+
+    /* 5) Deve esserci almeno una cifra: "   +" non basta */
+    if (!check_valid("   +", 10, 0, 0)) return fail();
+
+    /* 6) 'A' non è cifra in base 10 -> invalido */
+    if (!check_valid("A", 10, 0, 0)) return fail();
+
+    /* 7) Basi invalide */
+    if (!check_valid("10", 1, 0, 0)) return fail();
+    if (!check_valid("10", 37, 0, 0)) return fail();
+
+    /* 8) Argomenti NULL */
+    if (!check_invalid_s_null(10)) return fail();
+    if (!check_invalid_r_null("10", 10)) return fail();
+
+    /* 9) minuscole NON accettate come cifre */
+    if (!check_valid("a", 16, 0, 0)) return fail();
+
+    /* 10) il conteggio include il segno */
+    if (!check_valid("-7", 10, 2, -7)) return fail();
+
+    printf("TEST PASSED\n");
+    return 0;
+}
+
+/* IMPLEMENTAZIONE stoib */
+
+static int digit_value(unsigned char c) {
+    if (c >= '0' && c <= '9') return (int)(c - '0');
+    if (c >= 'A' && c <= 'Z') return (int)(c - 'A') + 10;
+    return -1; /* include minuscole: NON valide */
+}
+
+int stoib(char *s, unsigned short b, int *r) {
+    if (s == NULL || r == NULL) return 0;
+    if (b < 2 || b > 36) return 0;
+
+    int i = 0;
+
+    /* skip whitespace iniziali */
+    while (s[i] != '\0' && isspace((unsigned char)s[i])) i++;
+
+    /* segno opzionale singolo */
+    int sign = 1;
+    if (s[i] == '+' || s[i] == '-') {
+        if (s[i] == '-') sign = -1;
+        i++;
+    }
+
+    /* deve esserci almeno una cifra valida */
+    int started = 0;
+    int value = 0;
+
+    while (s[i] != '\0') {
+        int dv = digit_value((unsigned char)s[i]);
+        if (dv < 0 || dv >= (int)b) break;
+        started = 1;
+        value = value * (int)b + dv; /* overflow ignorato */
+        i++;
+    }
+
+    if (!started) return 0;
+
+    *r = sign * value;
+    return i; 
+}
